@@ -1,0 +1,130 @@
+# Smart Security Monitoring — Streamhouse Architecture
+
+## Project Overview
+Hệ thống giám sát an ninh thông minh phát hiện bạo lực real-time (<100ms latency).
+Chuyển đổi từ **Lakehouse + Spark** sang **Streamhouse Trio** (Fluss/Paimon/Iceberg).
+**Khóa luận tốt nghiệp** — Nguyễn Ngọc Minh Nhật & Nguyễn Quốc Huy.
+
+## Tech Stack
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Message Broker | Apache Kafka (KRaft) | Event streaming |
+| Compute | Apache Flink | True streaming, exactly-once |
+| Hot Storage | Apache Fluss | <100ms real-time queries |
+| Warm Storage | Apache Paimon | 1-10 min, ACID, CDC, LSM-tree |
+| Cold Storage | Apache Iceberg | Historical, Parquet, time-travel |
+| Object Store | MinIO | S3-compatible |
+| Query Engine | Trino | Federated SQL across all layers |
+| AI/LLM | Google Gemini 2.0 | Text-to-SQL, Agentic RAG |
+| Vector DB | ChromaDB | RAG context retrieval |
+| ML Model | VioMobileNet | Violence detection inference |
+| Frontend | React.js + Tailwind | Command center dashboard |
+| Monitoring | Prometheus + Grafana | Metrics & dashboards |
+
+## Project Structure
+```
+├── scripts/
+│   ├── streaming/       # RTSP producers, simulators, mock inference
+│   ├── transform/       # Bronze & Gold layer ETL (Flink/Spark)
+│   ├── chatbot/         # Agentic RAG (LangGraph + Gemini + ChromaDB)
+│   └── setup/           # Infrastructure init (Kafka topics, etc.)
+├── docker/              # docker-compose.yml, Dockerfiles, .env
+├── config/              # Kafka, Spark, Trino, Hive, Grafana, Prometheus
+├── frontend/            # React dashboard
+├── data/                # Datasets & metadata
+├── docs/agent-guides/   # Detailed architecture & implementation docs
+└── assets/              # Screenshots for thesis
+```
+
+## Essential Commands
+```bash
+# Start full stack
+docker compose -f docker/docker-compose.yml up -d
+
+# Start specific service
+docker compose -f docker/docker-compose.yml up -d kafka minio
+
+# View logs
+docker compose -f docker/docker-compose.yml logs -f <service>
+
+# Run mock inference (generates test data)
+docker compose -f docker/docker-compose.yml up inference-mock
+
+# Kafka topics setup
+docker exec -it kafka bash /scripts/setup/create-topics.sh
+
+# Trino CLI
+docker exec -it trino-coordinator trino
+```
+
+## Architecture (High-Level)
+```
+Camera (RTSP) → VioMobileNet → Kafka → Flink
+  ├─ Data Contract Validation
+  │   ├─ Valid → Fluss (HOT, <100ms, 1-2hr retention)
+  │   └─ Invalid → Quarantine Topic
+  ├─ Paimon (WARM, 1-10min, 7-30 day retention, CDC+ACID)
+  └─ Iceberg (COLD, 10+min, years retention, time-travel)
+      ↓
+  Trino (Unified Query Federation)
+      ↓
+  Agentic RAG (LangGraph → Text-to-SQL → Self-correct)
+      ↓
+  React Dashboard (Real-time command center)
+```
+
+## Data Flow Rules
+- **Hot queries** (< 1 hour): Route to Fluss
+- **Warm queries** (1 hour – 7 days): Route to Paimon
+- **Cold queries** (> 7 days): Route to Iceberg
+- **Data Contracts**: Validate at source (schema-on-write), reject invalid → quarantine
+
+## Code Conventions
+- **Python**: snake_case, type hints, docstrings for public functions
+- **Docker**: Always use env vars (no hardcoded credentials), healthchecks, resource limits
+- **Kafka topics**: kebab-case (e.g., `urban-safety-alerts`)
+- **SQL tables**: snake_case with layer prefix (e.g., `bronze_violence_incidents`)
+- **Commits**: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`)
+- **Language**: Code & comments in English, user-facing docs in Vietnamese
+
+## Agent Collaboration Protocol
+- **Handover file**: `DEVELOPER_LOG.md` — cập nhật "Last State" mỗi khi kết thúc phiên
+- **Claude**: Infrastructure, Docker, Flink pipelines, data engineering
+- **Gemini**: Agentic RAG, Text-to-SQL, chatbot, AI intelligence
+- Cả hai agent đều tham chiếu `docs/agent-guides/` cho tài liệu chi tiết
+
+## Streaming Services — Graceful Stop
+`producer` và `inference-mock` chạy **vô tận** (while True). Sau khi test, **BẮT BUỘC** dừng:
+```bash
+docker exec inference-mock touch /app/tmp/STOP
+docker exec producer touch /app/tmp/STOP
+```
+Khi restart, stop file tự xóa. Chi tiết: `docs/agent-guides/stop-mechanism.md`
+
+## Project Context (Shared)
+Đọc `docs/PROJECT_CONTEXT.md` để nắm toàn bộ trạng thái dự án (services, ports, tiến độ, phân công).
+
+## Detailed Documentation
+- [Architecture](docs/agent-guides/architecture.md) — Kiến trúc cũ vs mới, flow diagrams
+- [Storage Layers](docs/agent-guides/storage-layers.md) — Hot/Warm/Cold chi tiết + SQL
+- [Data Contracts](docs/agent-guides/data-contracts.md) — Validation rules, quarantine flow
+- [Agentic RAG](docs/agent-guides/agentic-rag.md) — LangGraph agent, Text-to-SQL
+- [Stop Mechanism](docs/agent-guides/stop-mechanism.md) — Graceful stop cho streaming services
+- [Roadmap](docs/agent-guides/roadmap.md) — 8-week plan, checklist, demo script
+
+## Key Ports
+| Service | Port |
+|---------|------|
+| Kafka | 19092 |
+| Kafka UI | 18085 |
+| Flink Web UI | 8081 |
+| MinIO Console | 9001 |
+| MinIO API | 9000 |
+| Trino | 8082 |
+| Hive Metastore | 9083 |
+| Fluss Coordinator | 9123 |
+| Fluss TabletServer | 9094 |
+| MediaMTX (RTSP) | 8554 |
+| Prometheus | 9090 |
+| Grafana | 3001 |
+| Chatbot API | 5002 |
